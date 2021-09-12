@@ -1,0 +1,382 @@
+# Prediction with R
+
+This is a straight forward example of prediction using the Iris data set.
+
+## 1. Install the Package(s)
+
+Install the packages we are going to use today. Packages are third party add-ons or libraries that we can use in R.
+
+```{r Install the Package, echo=TRUE}
+
+install.packages("caret")
+install.packages("ellipse")
+
+library(caret)
+library(ellipse)
+
+```
+
+We may need other packages, but caret should ask us if we want to load them. If you are having problems with packages, you can install the caret packages and all packages that you might need by typing:
+
+```{r Dependencies, echo=TRUE}
+
+install.packages("caret", dependencies=c("Depends", "Suggests"))
+install.packages("lattice")
+
+```
+During this particular prediction problem, I encountered issues with no directly installing the lattice package, so I installed that as well.
+
+Once you have installed the package, you still have to explicitly load it.
+
+```{r Load the Package, echo=TRUE}
+library(caret)
+library(lattice)
+```
+
+The caret package provides a consistent interface into hundreds of machine learning algorithms and provides useful convenience methods for data visualization, data resampling, model tuning and model comparison, among other features. It’s a good tool for machine learning projects in R.
+
+For more information about the caret R package see the [caret package homepage](https://topepo.github.io/caret/index.html).
+
+The data set we commonly use contains 150 observations of iris flowers. There are four columns of measurements of the flowers in centimeters. The fifth column is the species of the flower observed. All observed flowers belong to one of three species.
+
+You can learn more about [this data set](https://en.wikipedia.org/wiki/Iris_flower_data_set) on Wikipedia.
+
+Here is what we are going to do in this step:
+
+1. Load the iris data the easy way.
+2. Load the iris data from CSV (optional, for purists).
+3. Separate the data into a training dataset and a validation dataset.
+4. Choose your preferred way to load data or try both methods.
+
+# 2. Load Data The Easy Way
+
+Fortunately, the R platform provides the iris data set for us. Load the data set as follows:
+
+```{r Load Iris the Easy Way, echo=TRUE}
+# attach the iris dataset to the environment
+data(iris)
+# rename the dataset
+dataset <- iris
+```
+
+You now have the iris data loaded in R and accessible via the dataset variable.
+
+I can just name the loaded data “dataset”. This is helpful if you want to copy-paste code between projects and the data set always has the same name.
+
+# 2a. Load From CSV
+Maybe you need to practice  and you want to load the data just like you would on your own machine learning project, from a CSV file.
+
+Download the iris data set from the UCI Machine Learning Repository (here is the [direct link](https://archive.ics.uci.edu/ml/machine-learning-databases/iris/iris.data)).
+Save the file as iris.csv your project directory.
+Load the dataset from the CSV file as follows:
+
+```{r Load a CSV Dataset, echo=TRUE}
+# define the file name
+filename <- "iris.csv"
+# load the CSV file from the local directory
+dataset <- read.csv(filename, header=FALSE)
+# set the column names in the data set
+colnames(dataset) <- c("Sepal.Length","Sepal.Width","Petal.Length","Petal.Width","Species")
+```
+You now have the iris data loaded in R and accessible via the dataset variable.
+
+## 3. Create a Validation Dataset
+We need to know that the model that we create is any good.
+
+We will use statistical methods to estimate the accuracy of the models that we create on unseen data. We also want a more concrete estimate of the accuracy of the best model on unseen data by evaluating it on actual unseen data.
+
+That is, we are going to hold back some data that the algorithms will not get to see and we will use this data to get a second and independent idea of how accurate the best model might actually be.
+
+We will split the loaded dataset into two, 80% of which we will use to train our models and 20% that we will hold back as a validation dataset.
+
+```{r Split into a Training and Test Set, echo=TRUE}
+# create a list of 80% of the rows in the original data set we can use for training
+validation_index <- createDataPartition(dataset$Species, p=0.80, list=FALSE)
+# select 20% of the data for validation
+validation <- dataset[-validation_index,]
+# use the remaining 80% of data to training and testing the models
+dataset <- dataset[validation_index,]
+```
+## 4. Summarize Dataset
+Now it is time to take a look at the data.
+
+In this step we are going to take a look at the data a few different ways:
+
+1. Dimensions of the data set.
+2. Types of the attributes.
+3. Peek at the data itself.
+4. Levels of the class attribute.
+5. Breakdown of the instances in each class.
+6. Statistical summary of all attributes.
+
+It is actually pretty cool because each look at the data is one command. 
+These are useful commands that you can use again and again on future projects.
+
+### Dimensions of Dataset
+We can get a quick idea of how many instances (rows) and how many attributes (columns) the data contains with the dim function.
+
+```{r Dimensions} 
+# dimensions of data set
+dim(dataset)
+```
+You should see 120 instances and 5 attributes.
+
+### Types of Attributes
+It is a good idea to get an idea of the types of the attributes. They could be doubles, integers, strings, factors and other types.
+
+Knowing the types is important as it will give you an idea of how to better summarize the data you have and the types of transforms you might need to use to prepare the data before you model it.
+
+#### list types for each attribute
+
+```{r Listing types for each attribute}
+sapply(dataset, class)
+
+```
+
+You should see that all of the inputs are double and that the class value is a factor:
+
+### Peek at the Data
+It is also always a good idea to actually eyeball your data.
+
+```{r Head of Data}
+
+# take a peek at the first 5 rows of the data
+head(dataset)
+```
+
+You should see the first 5 rows of the data:
+
+### Levels of the Class
+The class variable is a factor. A factor is a class that has multiple class labels or levels. Let’s look at the levels:
+
+```{r Levels}
+# list the levels for the class
+levels(dataset$Species)
+
+```
+
+Notice above how we can refer to an attribute by name as a property of the data set. In the results we can see that the class has 3 different labels.
+
+This means it is a multi-class or a multinomial classification problem. If there were two levels, it would be a binary classification problem.
+
+### Class Distribution
+Let’s now take a look at the number of instances (rows) that belong to each class. We can view this as an absolute count and as a percentage.
+
+# summarize the class distribution
+```{r Summarizing the Class Distribution}
+percentage <- prop.table(table(dataset$Species)) * 100
+cbind(freq=table(dataset$Species), percentage=percentage)
+```
+
+### Statistical Summary
+Now finally, we can take a look at a summary of each attribute.
+
+This includes the mean, the min and max values as well as some percentiles (25th, 50th or media and 75th e.g. values at this points if we ordered all the values for an attribute).
+
+# summarize attribute distributions
+```{r}
+summary(dataset)
+```
+
+We can see that all of the numerical values have the same scale (centimeters) and similar ranges [0,8] centimeters.
+
+## 5. Visualize Dataset
+We now have a basic idea about the data. We need to extend that with some visualizations.
+
+We are going to look at two types of plots:
+
+Univariate plots to better understand each attribute.
+Multivariate plots to better understand the relationships between attributes.
+
+We start with some univariate plots, that is, plots of each individual variable.
+
+It is helpful with visualization to have a way to refer to just the input attributes and just the output attributes. Let’s set that up and call the inputs attributes x and the output attribute (or class) y.
+
+# split input and output
+```{r Splitting INput and Output}
+x <- dataset[,1:4]
+y <- dataset[,5]
+```
+
+Given that the input variables are numeric, we can create box and whisker plots of each.
+
+# boxplot for each attribute on one image
+```{r Boxplot of Attributes}
+par(mfrow=c(1,4))
+  for(i in 1:4) {
+  boxplot(x[,i], main=names(iris)[i])
+}
+```
+
+# boxplot for each attribute on one image
+```{r Boxplot for Each Attribute}
+par(mfrow=c(1,4))
+  for(i in 1:4) {
+  boxplot(x[,i], main=names(iris)[i])
+}
+```
+
+This gives us a much clearer idea of the distribution of the input attributes
+
+We can also create a bar plot of the Species class variable to get a graphical representation of the class distribution.  They are even in this case so it is not very illuminating.
+
+# barplot for class breakdown
+```{r Class Breakdown}
+plot(y)
+```
+### Multivariate Plots
+Now we can look at the interactions between the variables.
+
+First let’s look at scatter plots of all pairs of attributes and color the points by class. In addition, because the scatter plots show that points for each class are generally separate, we can draw ellipses around them.
+
+# scatterplot matrix
+```{r Scatterplot of Multivariate Analysis}
+featurePlot(x=x, y=y, plot="ellipse")
+```
+
+We can see some clear relationships between the input attributes (trends) and between attributes and the class values (ellipses):
+
+We can also look at box and whisker plots of each input variable again, but this time broken down into separate plots for each class. This can help to tease out obvious linear separations between the classes.
+
+# box and whisker plots for each attribute
+```{r Box and Whisker Plots for Each Attribute}
+featurePlot(x=x, y=y, plot="box")
+```
+
+It is useful to see that there are clearly different distributions of the attributes for each class value.
+
+Next we can get an idea of the distribution of each attribute, again like the box and whisker plots, broken down by class value. Sometimes histograms are good for this, but in this case we will use some probability density plots to give nice smooth lines for each distribution.
+
+# density plots for each attribute by class value
+```{r Density Plots by Attribute for Each Class}
+scales <- list(x=list(relation="free"), y=list(relation="free"))
+featurePlot(x=x, y=y, plot="density", scales=scales)
+```
+
+Like the box plots, we can see the difference in distribution of each attribute by class value. We can also see the Gaussian-like distribution (bell curve) of each attribute.
+
+## 6. Evaluate Some Algorithms
+Now it is time to create some models of the data and estimate their accuracy on unseen data.
+
+Here is what we are going to cover in this step:
+
+Set-up the test harness to use 10-fold cross validation.
+Build 5 different models to predict species from flower measurements
+Select the best model.
+
+### Test Harness
+We will 10-fold cross validation to estimate accuracy.
+
+This will split our data set into 10 parts, train in 9 and test on 1 and release for all combinations of train-test splits. We will also repeat the process 3 times for each algorithm with different splits of the data into 10 groups, in an effort to get a more accurate estimate.
+
+# Run algorithms using 10-fold cross validation
+```{r }
+control <- trainControl(method="cv", number=10)
+metric <- "Accuracy"
+
+```
+
+We are using the metric of “Accuracy” to evaluate models. This is a ratio of the number of correctly predicted instances in divided by the total number of instances in the data set multiplied by 100 to give a percentage (e.g. 95% accurate). We will be using the metric variable when we run build and evaluate each model next.
+
+### Build Models
+We don’t know which algorithms would be good on this problem or what configurations to use. We get an idea from the plots that some of the classes are partially linearly separable in some dimensions, so we are expecting generally good results.
+
+Let’s evaluate 5 different algorithms:
+
+1. Linear Discriminant Analysis (LDA)
+2. Classification and Regression Trees (CART).
+3. k-Nearest Neighbors (kNN).
+4. Support Vector Machines (SVM) with a linear kernel.
+5. Random Forest (RF)
+
+This is a good mixture of simple linear (LDA), nonlinear (CART, kNN) and complex nonlinear methods (SVM, RF). We reset the random number seed before reach run to ensure that the evaluation of each algorithm is performed using exactly the same data splits. It ensures the results are directly comparable.
+
+Let’s build our five models:
+
+# a) linear algorithms
+```{r Linear Algorithms for Prediction}
+install.packages(e1071)
+library(e1071)
+
+set.seed(7)
+fit.lda <- train(Species~., data=dataset, method="lda", metric=metric, trControl=control)
+```
+
+# b) nonlinear algorithms
+# CART
+```{r Non-Linear with CART}
+set.seed(7)
+fit.cart <- train(Species~., data=dataset, method="rpart", metric=metric, trControl=control)
+```
+
+# kNN
+```{r Non-Linear with kNN}
+set.seed(7)
+fit.knn <- train(Species~., data=dataset, method="knn", metric=metric, trControl=control)
+```
+
+# c) advanced algorithms
+# SVM
+```{r Advanced Algorithm: SVM}
+install.packages("kernlab")
+library(kernlab)
+
+set.seed(7)
+fit.svm <- train(Species~., data=dataset, method="svmRadial", metric=metric, trControl=control)
+```
+# Random Forest
+```{r Advanced Algorithms: Random Forest}
+install.packages("randomForest")
+library(randomForest)
+
+set.seed(7)
+fit.rf <- train(Species~., data=dataset, method="rf", metric=metric, trControl=control)
+```
+
+#### Select Best Model
+We now have 5 models and accuracy estimations for each. We need to compare the models to each other and select the most accurate.
+
+We can report on the accuracy of each model by first creating a list of the created models and using the summary function.
+
+# summarize accuracy of models
+```{r Accuracy of Models}
+results <- resamples(list(lda=fit.lda, cart=fit.cart, knn=fit.knn, svm=fit.svm, rf=fit.rf))
+summary(results)
+```
+
+We can create a plot of the model evaluation results and compare the spread and the mean accuracy of each model. There is a population of accuracy measures for each algorithm because each algorithm was evaluated 10 times (10 fold cross validation).
+
+# compare accuracy of models
+```{r Plot the Model Results}
+dotplot(results)
+```
+We can see that the most accurate model in this case was LDA.
+
+The results for just the LDA model can be summarized.
+
+# summarize Best Model
+```{r Summary of the Model}
+print(fit.lda)
+```
+This gives a nice summary of what was used to train the model and the mean and standard deviation (SD) accuracy achieved, specifically 97.5% accuracy +/- 4%
+
+# 7. Make Predictions
+The LDA was the most accurate model. Now we want to get an idea of the accuracy of the model on our validation set.
+
+This will give us an independent final check on the accuracy of the best model. It is valuable to keep a validation set just in case you made a slip during such as over fitting to the training set or a data leak. Both over fitting and a data leak can result in an overly optimistic result.  If a model works great on data we have, it is interesting.  Only if it works great on data it has not seen before is it useful.
+
+We can run the LDA model directly on the validation set and summarize the results in a confusion matrix.
+
+# estimate skill of LDA on the validation dataset
+```{r Confusion Matrix that Estimates How Well LDA Works on New Data}
+predictions <- predict(fit.lda, validation)
+confusionMatrix(predictions, validation$Species)
+```
+
+
+We can see that the accuracy is 93%. It was a small validation data set (20%), but this result is within an expected margin for a 95% CI, suggesting we may have a reliably accurate model.  If we investigate further, we can probably find ways to fine tune the model so that the accuracy improves.
+
+
+## Source
+
+[Machine Learning Mastery](https://machinelearningmastery.com/machine-learning-in-r-step-by-step/) is always a great source of inspiration for models and projects.  
